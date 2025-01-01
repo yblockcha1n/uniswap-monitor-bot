@@ -16,8 +16,14 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction: CommandInteraction): Promise<void> {
   await interaction.deferReply();
 
+  if (!process.env.PRIVATE_KEY) {
+    console.error('PRIVATE_KEY is not defined in environment variables');
+    await interaction.editReply('Error: Private key not configured');
+    return;
+  }
+
   try {
-    const uniswapService = new UniswapService(process.env.RPC_URL!);
+    const uniswapService = new UniswapService(process.env.RPC_URL!, process.env.PRIVATE_KEY);
     const balance = await uniswapService.getPoolBalance();
     
     const embed = new EmbedBuilder()

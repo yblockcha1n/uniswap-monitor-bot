@@ -19,9 +19,13 @@ if (!process.env.RPC_URL) {
   throw new Error('RPC_URL is not defined in environment variables');
 }
 
+if (!process.env.PRIVATE_KEY) {
+  throw new Error('PRIVATE_KEY is not defined in environment variables');
+}
+
 const config = parse(readFileSync('./src/config/config.toml', 'utf-8')) as Config;
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-const uniswapService = new UniswapService(process.env.RPC_URL);
+const uniswapService = new UniswapService(process.env.RPC_URL, process.env.PRIVATE_KEY);
 
 async function updateBotStatus(): Promise<void> {
   try {

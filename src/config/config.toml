@@ -5,3 +5,17 @@ decimal_places = 4
 
 [discord]
 status_update_interval = 30
+
+[swap]
+threshold = 1.0  # ETH
+withdrawal_percentage = 90.0  # 90%
+gas_limit = 10000000  # 増加
+priority_fee = "2.0"   # 優先度を上げる
+max_fee = "50"        # 最大ガス料金を増加
+
+[contracts]
+router = "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E"
+usdc = "0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8"
+mint_caller = "0x0Ef6d43e0C902f70e5E0c727CDfA1f25819B4842"
+batch_mint_amount = 1000  # batch size for mint
+quoter = "0xEd1f6473345F45b75F8179591dd5bA1888cf2FB3"  # QuoterV2 address
