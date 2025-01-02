@@ -1,24 +1,41 @@
+export interface PoolConfig {
+  address: string;
+  token_address: string;
+  token_decimals: number;
+  update_interval: number;
+  decimal_places: number;
+  threshold: number;
+  withdrawal_percentage: number;
+  batch_mint_amount: number;
+}
+
+export interface LoggerConfig {
+  level: string;
+  file_path: string;
+}
+
 export interface Config {
-  pool: {
-    address: string;
-    update_interval: number;
-    decimal_places: number;
-  };
   discord: {
     status_update_interval: number;
+    notification_channel_id: string;
+    error_channel_id: string;
   };
   swap: {
-    threshold: number;
-    withdrawal_percentage: number;
     gas_limit: number;
     priority_fee: string;
     max_fee: string;
   };
   contracts: {
     router: string;
-    usdc: string;
     weth: string;
     mint_caller: string;
-    batch_mint_amount: number;
   };
+  pools: {
+    usdc_weth: PoolConfig;
+    usdt_weth: PoolConfig;
+    dai_weth: PoolConfig;
+  };
+  logger: LoggerConfig;
 }
+
+export type PoolType = 'usdc_weth' | 'usdt_weth' | 'dai_weth';

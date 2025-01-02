@@ -1,66 +1,171 @@
-import { Client, Events, GatewayIntentBits, ActivityType } from 'discord.js';
+import { 
+  Client, 
+  Events, 
+  GatewayIntentBits,
+  ChatInputCommandInteraction
+} from 'discord.js';
 import { config as dotenvConfig } from 'dotenv';
-import cron from 'node-cron';
 import { parse } from 'toml';
 import { readFileSync } from 'fs';
+import { ethers } from 'ethers';
+import path from 'path';
 
-import { UniswapService } from './utils/uniswapService';
-import { formatNumber } from './utils/formatNumber';
-import * as balanceCommand from './commands/balance';
 import { Config } from './types/config';
+import { Logger } from './utils/logger';
+import { PoolMonitorService } from './services/PoolMonitorService';
+import * as balanceCommand from './commands/balance';
 
 dotenvConfig();
 
-if (!process.env.DISCORD_TOKEN) {
-  throw new Error('DISCORD_TOKEN is not defined in environment variables');
+const requiredEnvVars = ['DISCORD_TOKEN', 'RPC_URL', 'PRIVATE_KEY'];
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    throw new Error(`${envVar} is not defined in environment variables`);
+  }
 }
 
-if (!process.env.RPC_URL) {
-  throw new Error('RPC_URL is not defined in environment variables');
-}
-
-if (!process.env.PRIVATE_KEY) {
-  throw new Error('PRIVATE_KEY is not defined in environment variables');
-}
-
-const config = parse(readFileSync('./src/config/config.toml', 'utf-8')) as Config;
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-const uniswapService = new UniswapService(process.env.RPC_URL, process.env.PRIVATE_KEY);
-
-async function updateBotStatus(): Promise<void> {
+async function main() {
   try {
-    const balance = await uniswapService.getPoolBalance();
-    await client.user?.setActivity(`WETH: ${formatNumber(balance, config.pool.decimal_places)}`, { type: ActivityType.Watching });
+    const configPath = path.join(process.cwd(), 'config', 'config.toml');
+    const config = parse(readFileSync(configPath, 'utf-8')) as Config;
+    
+    const client = new Client({ 
+      intents: [GatewayIntentBits.Guilds],
+      presence: {
+        activities: [],
+        status: 'online'
+      }
+    });
+
+    const logger = new Logger(config, client);
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+    
+    logger.info('Starting application', {
+      nodeEnv: process.env.NODE_ENV,
+      configPath
+    });
+    
+    const poolMonitor = new PoolMonitorService(config, logger, provider);
+
+    client.once(Events.ClientReady, (readyClient) => {
+      logger.info('Discord bot is ready!', {
+        username: readyClient.user.tag
+      });
+      
+      poolMonitor.startMonitoring().catch(error => {
+        logger.error('Failed to start pool monitoring', { 
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      });
+    });
+
+    client.on(Events.InteractionCreate, async interaction => {
+      if (!interaction.isChatInputCommand()) return;
+
+      try {
+        switch (interaction.commandName) {
+          case 'balance': {
+            await balanceCommand.execute(
+              interaction as ChatInputCommandInteraction,
+              config,
+              logger,
+              provider
+            );
+            break;
+          }
+          default: {
+            logger.warn('Unknown command received', {
+              commandName: interaction.commandName
+            });
+            await interaction.reply({
+              content: 'Unknown command',
+              ephemeral: true
+            });
+          }
+        }
+      } catch (error) {
+        logger.error('Error handling command', {
+          command: interaction.commandName,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined
+        });
+        
+        try {
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({
+              content: 'An error occurred while processing the command.',
+              ephemeral: true
+            });
+          } else if (interaction.deferred) {
+            await interaction.editReply('An error occurred while processing the command.');
+          }
+        } catch (replyError) {
+          logger.error('Failed to send error response to Discord', {
+            originalError: error instanceof Error ? error.message : 'Unknown error',
+            replyError: replyError instanceof Error ? replyError.message : 'Unknown error'
+          });
+        }
+      }
+    });
+
+    const commands = [balanceCommand.data.toJSON()];
+    
+    try {
+      await client.login(process.env.DISCORD_TOKEN);
+      
+      if (!client.application) {
+        throw new Error('Client application is not ready');
+      }
+      
+      await client.application.commands.set(commands);
+      logger.info('Slash commands registered successfully');
+    } catch (error) {
+      logger.error('Error during bot initialization', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      process.exit(1);
+    }
+
+    const shutdown = async () => {
+      logger.info('Application shutdown initiated');
+      await poolMonitor.stopMonitoring();
+      client.destroy();
+      process.exit(0);
+    };
+
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
+    
+    process.on('uncaughtException', async (error) => {
+      logger.error('Uncaught exception', { 
+        error: error.message,
+        stack: error.stack
+      });
+      await shutdown().catch(err => {
+        console.error('Error during shutdown:', err);
+        process.exit(1);
+      });
+    });
+
+    process.on('unhandledRejection', async (error) => {
+      logger.error('Unhandled rejection', { 
+        error: error instanceof Error ? error.message : 'Unknown promise rejection',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      await shutdown().catch(err => {
+        console.error('Error during shutdown:', err);
+        process.exit(1);
+      });
+    });
+
   } catch (error) {
-    console.error('Error updating status:', error);
+    console.error('Fatal error during startup:', error);
+    process.exit(1);
   }
 }
 
-client.once(Events.ClientReady, () => {
-  console.log('Discord bot is ready!');
-  updateBotStatus();
-  
-  cron.schedule(`*/${config.discord.status_update_interval} * * * *`, updateBotStatus);
+main().catch(error => {
+  console.error('Fatal error:', error);
+  process.exit(1);
 });
-
-client.on(Events.InteractionCreate, async interaction => {
-  if (!interaction.isChatInputCommand()) return;
-
-  if (interaction.commandName === 'balance') {
-    await balanceCommand.execute(interaction);
-  }
-});
-
-const commands = [balanceCommand.data.toJSON()];
-client.login(process.env.DISCORD_TOKEN)
-  .then(() => {
-    if (!client.application) {
-      throw new Error('Client application is not ready');
-    }
-    return client.application.commands.set(commands);
-  })
-  .then(() => console.log('Slash commands registered successfully'))
-  .catch(error => {
-    console.error('Error during bot initialization:', error);
-    process.exit(1);
-  });

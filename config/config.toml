@@ -1,0 +1,48 @@
+[discord]
+status_update_interval = 30
+notification_channel_id = "1324306788912336937"
+error_channel_id = "1321046596305289308"
+
+[swap]
+gas_limit = 10000000
+priority_fee = "2.0"
+max_fee = "50"
+
+[contracts]
+router = "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E"
+weth = "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"
+mint_caller = "0x0Ef6d43e0C902f70e5E0c727CDfA1f25819B4842"
+
+[pools.usdc_weth]
+address = "0xcdF1597a0C2DDA04E80e135351831b7a6Af1f86d"
+token_address = "0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8"
+token_decimals = 6
+update_interval = 30
+decimal_places = 4
+threshold = 1.0
+withdrawal_percentage = 90.0
+batch_mint_amount = 1000
+
+[pools.usdt_weth]
+address = "0x58D850667c47981a1b6E7cA0b8Dc2eb937Cd4119"
+token_address = "0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0"
+token_decimals = 6
+update_interval = 30
+decimal_places = 4
+threshold = 1.0
+withdrawal_percentage = 90.0
+batch_mint_amount = 1000
+
+[pools.dai_weth]
+address = "0x60439363146Fc0F633388B4402082Cd673906d2C"
+token_address = "0xFF34B3d4Aee8ddCd6F9AFFFB6Fe49bD371b8a357"
+token_decimals = 18
+update_interval = 30
+decimal_places = 4
+threshold = 1.0
+withdrawal_percentage = 90.0
+batch_mint_amount = 1000
+
+[logger]
+level = "info"
+file_path = "logs/app.log"
