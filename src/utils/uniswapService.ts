@@ -12,11 +12,13 @@ const POOL_ADDRESS = config.pool.address;
 export class UniswapService {
   private provider: ethers.JsonRpcProvider;
   private poolContract: ethers.Contract;
+  private wethContract: ethers.Contract;
   private swapService: SwapService;
 
   constructor(rpcUrl: string, privateKey: string) {
     this.provider = new ethers.JsonRpcProvider(rpcUrl);
     this.poolContract = new ethers.Contract(POOL_ADDRESS, UniswapV3PoolABI, this.provider);
+    this.wethContract = new ethers.Contract(config.contracts.weth, ['function balanceOf(address) view returns (uint256)'], this.provider);
     this.swapService = new SwapService(rpcUrl, privateKey);
   }
 
@@ -31,13 +33,7 @@ export class UniswapService {
   async getPoolBalance(): Promise<string> {
     try {
       const { token1Address } = await this.getTokenAddresses();
-      
-      const wethInterface = new ethers.Interface([
-        "function balanceOf(address) view returns (uint256)"
-      ]);
-      
-      const wethContract = new ethers.Contract(token1Address, wethInterface, this.provider);
-      const balanceWei = await wethContract.balanceOf(POOL_ADDRESS);
+      const balanceWei = await this.wethContract.balanceOf(POOL_ADDRESS);
       const balance = ethers.formatEther(balanceWei);
       
       await this.checkAndExecuteSwap(balance);
@@ -56,25 +52,20 @@ export class UniswapService {
       console.log(`Balance ${balanceNum} ETH exceeds threshold ${config.swap.threshold} ETH. Executing swap...`);
       
       try {
-        // Calculate withdrawal amount (90% of current balance)
         const withdrawalAmount = (balanceNum * config.swap.withdrawal_percentage) / 100;
         const withdrawalAmountWei = ethers.parseEther(withdrawalAmount.toString());
 
-        // Execute swap with exact output amount
         await this.swapService.executeSwap(withdrawalAmountWei);
 
-        // Verify the swap was successful by checking new balance
-        const newBalance = await this.poolContract.balanceOf(POOL_ADDRESS);
-        const newBalanceEth = ethers.formatEther(newBalance);
-        console.log(`Swap completed. New pool balance: ${newBalanceEth} ETH`);
+        const newBalanceWei = await this.wethContract.balanceOf(POOL_ADDRESS);
+        const newBalance = ethers.formatEther(newBalanceWei);
+        console.log(`Swap completed. New pool WETH balance: ${newBalance} ETH`);
 
-        // Verify if we achieved our target
         const targetBalance = balanceNum - withdrawalAmount;
-        const actualBalance = parseFloat(newBalanceEth);
-        console.log(`Target balance: ${targetBalance} ETH, Actual balance: ${actualBalance} ETH`);
-
-        if (Math.abs(actualBalance - targetBalance) > 0.1) { // 0.1 ETH tolerance
+        const actualBalance = parseFloat(newBalance);
+        if (Math.abs(actualBalance - targetBalance) > 0.1) {
           console.warn('Warning: Actual balance differs significantly from target balance');
+          console.log(`Target: ${targetBalance} ETH, Actual: ${actualBalance} ETH`);
         }
       } catch (error) {
         console.error('Error during swap execution:', error);

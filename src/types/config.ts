@@ -17,8 +17,8 @@ export interface Config {
   contracts: {
     router: string;
     usdc: string;
+    weth: string;
     mint_caller: string;
     batch_mint_amount: number;
-    quoter: string;
   };
 }
