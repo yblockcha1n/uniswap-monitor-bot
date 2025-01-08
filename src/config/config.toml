@@ -1,7 +1,0 @@
-[pool]
-address = "0xcdF1597a0C2DDA04E80e135351831b7a6Af1f86d"
-update_interval = 30
-decimal_places = 4
-
-[discord]
-status_update_interval = 30
